@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Quizzes — Admin</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div class="topbar">
+    <span class="wordmark">Quiz System — Admin</span>
+    <nav>
+      <a href="/admin/dashboard.html">Dashboard</a>
+      <a href="/admin/categories.html">Categories</a>
+      <a href="/admin/quizzes.html">Quizzes</a>
+      <a href="/admin/users.html">Users</a>
+      <a href="#" id="logoutLink">Sign out</a>
+    </nav>
+  </div>
+
+  <div class="container wide">
+    <h1>Quizzes</h1>
+    <div class="error-banner" id="errorBanner"></div>
+
+    <div class="card" style="max-width:520px">
+      <h3 id="formTitle">Add a quiz</h3>
+      <label for="title">Title</label>
+      <input type="text" id="title">
+      <label for="description">Description</label>
+      <input type="text" id="description">
+      <label for="categoryId">Category</label>
+      <select id="categoryId"></select>
+      <label for="questionsPerAttempt">Questions per attempt</label>
+      <input type="number" id="questionsPerAttempt" min="1" value="10">
+      <button id="saveBtn">Save</button>
+      <button class="secondary" id="cancelBtn" style="display:none">Cancel edit</button>
+    </div>
+
+    <table>
+      <thead><tr><th>Title</th><th>Category</th><th>Bank size</th><th>Per attempt</th><th>Status</th><th></th></tr></thead>
+      <tbody id="tableBody"></tbody>
+    </table>
+  </div>
+
+  <script src="/js/api.js"></script>
+  <script>
+    requireAuth('ADMIN');
+    document.getElementById('logoutLink').addEventListener('click', (e) => { e.preventDefault(); logout(); });
+
+    const errorBanner = document.getElementById('errorBanner');
+    let editingId = null;
+    let categories = [];
+
+    async function loadCategories() {
+      categories = await api('/api/admin/categories');
+      document.getElementById('categoryId').innerHTML = categories.map(c => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('');
+    }
+
+    async function load() {
+      try {
+        const quizzes = await api('/api/admin/quizzes');
+        document.getElementById('tableBody').innerHTML = quizzes.map(q => `
+          <tr>
+            <td>${escapeHtml(q.title)}</td>
+            <td>${escapeHtml(q.categoryName)}</td>
+            <td>${q.questionBankSize}</td>
+            <td>${q.questionsPerAttempt}</td>
+            <td><span class="badge ${q.published ? 'completed' : 'abandoned'}">${q.published ? 'Published' : 'Draft'}</span></td>
+            <td>
+              <a href="/admin/questions.html?quizId=${q.id}&title=${encodeURIComponent(q.title)}">Questions</a>
+              &nbsp;|&nbsp;
+              <a href="#" data-edit="${q.id}" data-title="${escapeHtml(q.title)}" data-desc="${escapeHtml(q.description || '')}" data-cat="${q.categoryId}" data-qpa="${q.questionsPerAttempt}">Edit</a>
+              &nbsp;|&nbsp;
+              <a href="#" data-toggle="${q.id}" data-published="${q.published}">${q.published ? 'Unpublish' : 'Publish'}</a>
+              &nbsp;|&nbsp;
+              <a href="#" data-delete="${q.id}">Delete</a>
+            </td>
+          </tr>
+        `).join('');
+
+        document.querySelectorAll('[data-edit]').forEach(el => el.addEventListener('click', (e) => {
+          e.preventDefault();
+          editingId = el.dataset.edit;
+          document.getElementById('title').value = el.dataset.title;
+          document.getElementById('description').value = el.dataset.desc;
+          document.getElementById('categoryId').value = el.dataset.cat;
+          document.getElementById('questionsPerAttempt').value = el.dataset.qpa;
+          document.getElementById('formTitle').textContent = 'Edit quiz';
+          document.getElementById('cancelBtn').style.display = 'inline-block';
+        }));
+
+        document.querySelectorAll('[data-toggle]').forEach(el => el.addEventListener('click', async (e) => {
+          e.preventDefault();
+          hideError(errorBanner);
+          const isPublished = el.dataset.published === 'true';
+          try {
+            // Publishing enforces Section 8 server-side — a clear error
+            // surfaces here if the question bank is too small.
+            await api(`/api/admin/quizzes/${el.dataset.toggle}/${isPublished ? 'unpublish' : 'publish'}`, { method: 'POST' });
+            load();
+          } catch (err) {
+            showError(errorBanner, err.message);
+          }
+        }));
+
+        document.querySelectorAll('[data-delete]').forEach(el => el.addEventListener('click', async (e) => {
+          e.preventDefault();
+          if (!confirm('Delete this quiz and all its questions?')) return;
+          try {
+            await api(`/api/admin/quizzes/${el.dataset.delete}`, { method: 'DELETE' });
+            load();
+          } catch (err) {
+            showError(errorBanner, err.message);
+          }
+        }));
+      } catch (err) {
+        showError(errorBanner, err.message);
+      }
+    }
+
+    document.getElementById('saveBtn').addEventListener('click', async () => {
+      hideError(errorBanner);
+      const payload = {
+        title: document.getElementById('title').value,
+        description: document.getElementById('description').value,
+        categoryId: parseInt(document.getElementById('categoryId').value),
+        questionsPerAttempt: parseInt(document.getElementById('questionsPerAttempt').value)
+      };
+      try {
+        if (editingId) {
+          await api(`/api/admin/quizzes/${editingId}`, { method: 'PUT', body: JSON.stringify(payload) });
+        } else {
+          await api('/api/admin/quizzes', { method: 'POST', body: JSON.stringify(payload) });
+        }
+        resetForm();
+        load();
+      } catch (err) {
+        showError(errorBanner, err.message);
+      }
+    });
+
+    document.getElementById('cancelBtn').addEventListener('click', resetForm);
+
+    function resetForm() {
+      editingId = null;
+      document.getElementById('title').value = '';
+      document.getElementById('description').value = '';
+      document.getElementById('questionsPerAttempt').value = 10;
+      document.getElementById('formTitle').textContent = 'Add a quiz';
+      document.getElementById('cancelBtn').style.display = 'none';
+    }
+
+    function escapeHtml(s) {
+      const div = document.createElement('div');
+      div.textContent = s;
+      return div.innerHTML;
+    }
+
+    (async () => { await loadCategories(); await load(); })();
+  </script>
+</body>
+</html>

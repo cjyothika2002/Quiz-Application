@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Dashboard — Quiz System</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div class="topbar">
+    <span class="wordmark">Quiz System — Admin</span>
+    <nav>
+      <a href="/admin/dashboard.html">Dashboard</a>
+      <a href="/admin/categories.html">Categories</a>
+      <a href="/admin/quizzes.html">Quizzes</a>
+      <a href="/admin/users.html">Users</a>
+      <a href="#" id="logoutLink">Sign out</a>
+    </nav>
+  </div>
+
+  <div class="container wide">
+    <h1>Dashboard</h1>
+    <div class="error-banner" id="errorBanner"></div>
+    <div id="statsArea"></div>
+  </div>
+
+  <script src="/js/api.js"></script>
+  <script>
+    requireAuth('ADMIN');
+    document.getElementById('logoutLink').addEventListener('click', (e) => { e.preventDefault(); logout(); });
+
+    const errorBanner = document.getElementById('errorBanner');
+
+    async function load() {
+      try {
+        const s = await api('/api/admin/stats');
+        document.getElementById('statsArea').innerHTML = `
+          <div class="stat-grid">
+            <div class="stat-cell"><div class="stat-number">${s.totalUsers}</div><div class="stat-label">Users</div></div>
+            <div class="stat-cell"><div class="stat-number">${s.totalCategories}</div><div class="stat-label">Categories</div></div>
+            <div class="stat-cell"><div class="stat-number">${s.totalQuizzes}</div><div class="stat-label">Quizzes</div></div>
+            <div class="stat-cell"><div class="stat-number">${s.totalQuestions}</div><div class="stat-label">Questions</div></div>
+            <div class="stat-cell"><div class="stat-number">${s.totalAttempts}</div><div class="stat-label">Total attempts</div></div>
+            <div class="stat-cell"><div class="stat-number">${s.completedAttempts}</div><div class="stat-label">Completed</div></div>
+            <div class="stat-cell"><div class="stat-number">${s.abandonedAttempts}</div><div class="stat-label">Abandoned</div></div>
+            <div class="stat-cell"><div class="stat-number">${s.averageScorePercentage.toFixed(0)}%</div><div class="stat-label">Average score</div></div>
+          </div>
+        `;
+      } catch (err) {
+        showError(errorBanner, err.message);
+      }
+    }
+
+    load();
+  </script>
+</body>
+</html>

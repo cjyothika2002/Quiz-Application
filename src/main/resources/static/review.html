@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Review — Quiz System</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div class="topbar">
+    <span class="wordmark">Quiz System</span>
+    <nav>
+      <a href="/dashboard.html">Quizzes</a>
+      <a href="/history.html">History</a>
+      <a href="#" id="logoutLink">Sign out</a>
+    </nav>
+  </div>
+
+  <div class="container">
+    <h1>Answer review</h1>
+    <div class="error-banner" id="errorBanner"></div>
+    <div id="reviewArea"></div>
+  </div>
+
+  <script src="/js/api.js"></script>
+  <script>
+    requireAuth('USER');
+    document.getElementById('logoutLink').addEventListener('click', (e) => { e.preventDefault(); logout(); });
+
+    const attemptId = new URLSearchParams(window.location.search).get('attemptId');
+    const errorBanner = document.getElementById('errorBanner');
+    const reviewArea = document.getElementById('reviewArea');
+
+    async function load() {
+      try {
+        const items = await api(`/api/attempts/${attemptId}/review`);
+        reviewArea.innerHTML = items.map((it, i) => `
+          <div class="card review-item ${it.wasCorrect ? 'correct' : 'incorrect'}">
+            <div class="quiz-meta">Question ${i + 1}</div>
+            <h3>${escapeHtml(it.questionText)}</h3>
+            <p><strong>Your answer:</strong> ${it.selectedOptionText ? escapeHtml(it.selectedOptionText) : '<em>Not answered</em>'}</p>
+            ${!it.wasCorrect ? `<p><strong>Correct answer:</strong> ${escapeHtml(it.correctOptionText)}</p>` : ''}
+            ${it.explanation ? `<p class="quiz-meta">${escapeHtml(it.explanation)}</p>` : ''}
+          </div>
+        `).join('');
+      } catch (err) {
+        showError(errorBanner, err.message);
+      }
+    }
+
+    function escapeHtml(s) {
+      const div = document.createElement('div');
+      div.textContent = s;
+      return div.innerHTML;
+    }
+
+    load();
+  </script>
+</body>
+</html>

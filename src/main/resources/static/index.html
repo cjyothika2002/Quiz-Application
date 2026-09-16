@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>QuizMaster — Login</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body class="auth-reference-page">
+  <main class="reference-login">
+    <section class="reference-login-card" aria-label="QuizMaster login">
+      <div class="reference-tabs">
+        <a class="active" href="/index.html">Login</a>
+        <a href="/register.html">Register</a>
+      </div>
+
+      <div class="error-banner" id="errorBanner"></div>
+
+      <form id="loginForm">
+        <div class="reference-field">
+          <span class="reference-icon">♙</span>
+          <label for="email">Email or Username</label>
+          <input type="text" id="email" placeholder="Email or Username" autocomplete="username" required>
+        </div>
+
+        <div class="reference-field">
+          <span class="reference-icon">♙</span>
+          <label for="password">Password</label>
+          <input type="password" id="password" placeholder="Password" autocomplete="current-password" required>
+          <button type="button" class="reference-password-toggle" id="togglePassword" aria-label="Show password">◉</button>
+        </div>
+
+        <div class="reference-options">
+          <label class="reference-remember"><input type="checkbox" id="rememberMe"> <span>Remember me</span></label>
+          <a href="#" id="forgotPassword">Forgot password?</a>
+        </div>
+
+        <button type="submit" class="reference-submit" id="submitBtn">Login</button>
+      </form>
+
+      <div class="reference-divider">OR</div>
+
+      <button type="button" class="reference-social" id="googleButton"><span class="social-mark">G</span>Continue with Google</button>
+      <button type="button" class="reference-social" id="githubButton"><span class="social-mark">●</span>Continue with GitHub</button>
+
+      <p class="reference-footer">Don’t have an account? <a href="/register.html">Register</a></p>
+    </section>
+  </main>
+
+  <script src="/js/api.js"></script>
+  <script>
+    const form = document.getElementById('loginForm');
+    const errorBanner = document.getElementById('errorBanner');
+    const submitBtn = document.getElementById('submitBtn');
+    const password = document.getElementById('password');
+    const togglePassword = document.getElementById('togglePassword');
+
+    togglePassword.addEventListener('click', () => {
+      const showing = password.type === 'text';
+      password.type = showing ? 'password' : 'text';
+      togglePassword.textContent = showing ? '◉' : '◌';
+      togglePassword.setAttribute('aria-label', showing ? 'Show password' : 'Hide password');
+    });
+
+    document.getElementById('forgotPassword').addEventListener('click', (e) => e.preventDefault());
+    document.getElementById('googleButton').addEventListener('click', () => showError(errorBanner, 'Google login is not configured in the current backend.'));
+    document.getElementById('githubButton').addEventListener('click', () => showError(errorBanner, 'GitHub login is not configured in the current backend.'));
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      hideError(errorBanner);
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Logging in…';
+      try {
+        const auth = await api('/api/auth/login', {
+          method: 'POST',
+          body: JSON.stringify({
+            email: document.getElementById('email').value,
+            password: document.getElementById('password').value
+          })
+        });
+        setAuth(auth);
+        window.location.href = auth.role === 'ADMIN' ? '/admin/dashboard.html' : '/dashboard.html';
+      } catch (err) {
+        showError(errorBanner, err.message);
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Login';
+      }
+    });
+  </script>
+</body>
+</html>

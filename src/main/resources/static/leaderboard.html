@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Leaderboard — Quiz System</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div class="topbar">
+    <span class="wordmark">Quiz System</span>
+    <nav>
+      <a href="/dashboard.html">Quizzes</a>
+      <a href="/history.html">History</a>
+      <a href="#" id="logoutLink">Sign out</a>
+    </nav>
+  </div>
+
+  <div class="container">
+    <h1 id="pageTitle">Leaderboard</h1>
+    <p>Ranked by best completed score; ties are broken by less time taken. Abandoned attempts don't count.</p>
+    <div class="error-banner" id="errorBanner"></div>
+    <table id="lbTable" style="display:none">
+      <thead><tr><th>Rank</th><th>Name</th><th>Score</th><th>Time</th></tr></thead>
+      <tbody id="lbBody"></tbody>
+    </table>
+    <div class="empty-state" id="emptyState" style="display:none">No completed attempts yet — be the first.</div>
+  </div>
+
+  <script src="/js/api.js"></script>
+  <script>
+    requireAuth('USER');
+    document.getElementById('logoutLink').addEventListener('click', (e) => { e.preventDefault(); logout(); });
+
+    const params = new URLSearchParams(window.location.search);
+    const quizId = params.get('quizId');
+    const title = params.get('title');
+    if (title) document.getElementById('pageTitle').textContent = `Leaderboard — ${title}`;
+
+    const errorBanner = document.getElementById('errorBanner');
+
+    async function load() {
+      try {
+        const entries = await api(`/api/quizzes/${quizId}/leaderboard`);
+        if (entries.length === 0) {
+          document.getElementById('emptyState').style.display = 'block';
+          return;
+        }
+        document.getElementById('lbTable').style.display = 'table';
+        document.getElementById('lbBody').innerHTML = entries.map(e => `
+          <tr>
+            <td>${e.rank}</td>
+            <td>${escapeHtml(e.userName)}</td>
+            <td>${e.bestScore}/${e.totalQuestions}</td>
+            <td>${formatSeconds(e.timeTakenSeconds)}</td>
+          </tr>
+        `).join('');
+      } catch (err) {
+        showError(errorBanner, err.message);
+      }
+    }
+
+    function formatSeconds(total) {
+      const m = Math.floor(total / 60);
+      const s = Math.floor(total % 60);
+      return `${m}m ${s}s`;
+    }
+
+    function escapeHtml(s) {
+      const div = document.createElement('div');
+      div.textContent = s;
+      return div.innerHTML;
+    }
+
+    load();
+  </script>
+</body>
+</html>

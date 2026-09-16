@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Users — Admin</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div class="topbar">
+    <span class="wordmark">Quiz System — Admin</span>
+    <nav>
+      <a href="/admin/dashboard.html">Dashboard</a>
+      <a href="/admin/categories.html">Categories</a>
+      <a href="/admin/quizzes.html">Quizzes</a>
+      <a href="/admin/users.html">Users</a>
+      <a href="#" id="logoutLink">Sign out</a>
+    </nav>
+  </div>
+
+  <div class="container wide">
+    <h1>Registered users</h1>
+    <div class="error-banner" id="errorBanner"></div>
+    <table>
+      <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Joined</th></tr></thead>
+      <tbody id="tableBody"></tbody>
+    </table>
+  </div>
+
+  <script src="/js/api.js"></script>
+  <script>
+    requireAuth('ADMIN');
+    document.getElementById('logoutLink').addEventListener('click', (e) => { e.preventDefault(); logout(); });
+
+    const errorBanner = document.getElementById('errorBanner');
+
+    async function load() {
+      try {
+        const users = await api('/api/admin/users');
+        document.getElementById('tableBody').innerHTML = users.map(u => `
+          <tr>
+            <td>${escapeHtml(u.name)}</td>
+            <td>${escapeHtml(u.email)}</td>
+            <td>${u.role}</td>
+            <td>${new Date(u.createdAt).toLocaleDateString()}</td>
+          </tr>
+        `).join('');
+      } catch (err) {
+        showError(errorBanner, err.message);
+      }
+    }
+
+    function escapeHtml(s) {
+      const div = document.createElement('div');
+      div.textContent = s;
+      return div.innerHTML;
+    }
+
+    load();
+  </script>
+</body>
+</html>

@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Result — Quiz System</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div class="topbar">
+    <span class="wordmark">Quiz System</span>
+    <nav>
+      <a href="/dashboard.html">Quizzes</a>
+      <a href="/history.html">History</a>
+      <a href="#" id="logoutLink">Sign out</a>
+    </nav>
+  </div>
+
+  <div class="container">
+    <div class="error-banner" id="errorBanner"></div>
+    <div id="resultArea"></div>
+  </div>
+
+  <script src="/js/api.js"></script>
+  <script>
+    requireAuth('USER');
+    document.getElementById('logoutLink').addEventListener('click', (e) => { e.preventDefault(); logout(); });
+
+    const attemptId = new URLSearchParams(window.location.search).get('attemptId');
+    const errorBanner = document.getElementById('errorBanner');
+    const resultArea = document.getElementById('resultArea');
+
+    async function load() {
+      try {
+        const r = await api(`/api/attempts/${attemptId}/result`);
+        resultArea.innerHTML = `
+          <h1>${escapeHtml(r.quizTitle)}</h1>
+          <p><span class="badge ${r.status.toLowerCase()}">${r.status}</span></p>
+          <div class="stat-grid">
+            <div class="stat-cell"><div class="stat-number">${r.score}/${r.totalQuestions}</div><div class="stat-label">Score</div></div>
+            <div class="stat-cell"><div class="stat-number">${r.percentage.toFixed(0)}%</div><div class="stat-label">Percentage</div></div>
+            <div class="stat-cell"><div class="stat-number">${r.correct}</div><div class="stat-label">Correct</div></div>
+            <div class="stat-cell"><div class="stat-number">${r.wrong}</div><div class="stat-label">Wrong</div></div>
+            <div class="stat-cell"><div class="stat-number">${r.unanswered}</div><div class="stat-label">Unanswered</div></div>
+            <div class="stat-cell"><div class="stat-number">${formatSeconds(r.timeTakenSeconds)}</div><div class="stat-label">Time taken</div></div>
+          </div>
+          <a class="btn" href="/review.html?attemptId=${attemptId}">View answers</a>
+          <a class="btn secondary" href="/dashboard.html">Back to quizzes</a>
+        `;
+      } catch (err) {
+        showError(errorBanner, err.message);
+      }
+    }
+
+    function formatSeconds(total) {
+      const m = Math.floor(total / 60);
+      const s = Math.floor(total % 60);
+      return `${m}m ${s}s`;
+    }
+
+    function escapeHtml(s) {
+      const div = document.createElement('div');
+      div.textContent = s;
+      return div.innerHTML;
+    }
+
+    load();
+  </script>
+</body>
+</html>

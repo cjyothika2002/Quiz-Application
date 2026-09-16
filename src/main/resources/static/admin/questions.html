@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Questions — Admin</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div class="topbar">
+    <span class="wordmark">Quiz System — Admin</span>
+    <nav>
+      <a href="/admin/dashboard.html">Dashboard</a>
+      <a href="/admin/categories.html">Categories</a>
+      <a href="/admin/quizzes.html">Quizzes</a>
+      <a href="/admin/users.html">Users</a>
+      <a href="#" id="logoutLink">Sign out</a>
+    </nav>
+  </div>
+
+  <div class="container wide">
+    <h1 id="pageTitle">Question bank</h1>
+    <p><a href="/admin/quizzes.html">&larr; Back to quizzes</a></p>
+    <div class="error-banner" id="errorBanner"></div>
+
+    <div class="card" style="max-width:600px">
+      <h3 id="formTitle">Add a question</h3>
+      <label for="text">Question text</label>
+      <textarea id="text" rows="2"></textarea>
+      <label for="explanation">Explanation (optional, shown in answer review)</label>
+      <textarea id="explanation" rows="2"></textarea>
+
+      <label>Options — mark exactly one as correct</label>
+      <div id="optionsEditor"></div>
+      <button type="button" class="secondary" id="addOptionBtn" style="margin-top:0.5rem">+ Add option</button>
+
+      <div>
+        <button id="saveBtn">Save question</button>
+        <button class="secondary" id="cancelBtn" style="display:none">Cancel edit</button>
+      </div>
+    </div>
+
+    <div id="questionList"></div>
+  </div>
+
+  <script src="/js/api.js"></script>
+  <script>
+    requireAuth('ADMIN');
+    document.getElementById('logoutLink').addEventListener('click', (e) => { e.preventDefault(); logout(); });
+
+    const params = new URLSearchParams(window.location.search);
+    const quizId = params.get('quizId');
+    const title = params.get('title');
+    if (title) document.getElementById('pageTitle').textContent = `Question bank — ${title}`;
+
+    const errorBanner = document.getElementById('errorBanner');
+    const optionsEditor = document.getElementById('optionsEditor');
+    let editingId = null;
+    let optionRowCount = 0;
+
+    function addOptionRow(text = '', correct = false) {
+      const id = optionRowCount++;
+      const row = document.createElement('div');
+      row.className = 'option-row';
+      row.dataset.rowId = id;
+      row.innerHTML = `
+        <input type="radio" name="correctOption" ${correct ? 'checked' : ''} style="margin-right:0.5rem">
+        <input type="text" style="flex:1; margin-right:0.5rem" value="${escapeAttr(text)}" placeholder="Option text">
+        <button type="button" class="secondary" data-remove="${id}" style="margin:0; padding:0.35rem 0.7rem">Remove</button>
+      `;
+      row.querySelector('[data-remove]').addEventListener('click', () => row.remove());
+      optionsEditor.appendChild(row);
+    }
+
+    document.getElementById('addOptionBtn').addEventListener('click', () => addOptionRow());
+
+    function resetForm() {
+      editingId = null;
+      document.getElementById('text').value = '';
+      document.getElementById('explanation').value = '';
+      optionsEditor.innerHTML = '';
+      addOptionRow(); addOptionRow(); // start with 2 blank options
+      document.getElementById('formTitle').textContent = 'Add a question';
+      document.getElementById('cancelBtn').style.display = 'none';
+    }
+
+    document.getElementById('cancelBtn').addEventListener('click', resetForm);
+
+    document.getElementById('saveBtn').addEventListener('click', async () => {
+      hideError(errorBanner);
+      const optionRows = Array.from(optionsEditor.querySelectorAll('.option-row'));
+      const options = optionRows.map(row => ({
+        text: row.querySelector('input[type="text"]').value,
+        correct: row.querySelector('input[type="radio"]').checked
+      }));
+
+      // Mirror the server-side rule client-side for a fast error message
+      // (Section 34: frontend validation is a UX nicety, never a substitute).
+      const correctCount = options.filter(o => o.correct).length;
+      if (correctCount !== 1) {
+        showError(errorBanner, `Exactly one option must be marked correct (currently ${correctCount}).`);
+        return;
+      }
+      if (options.length < 2) {
+        showError(errorBanner, 'At least 2 options are required.');
+        return;
+      }
+
+      const payload = {
+        text: document.getElementById('text').value,
+        explanation: document.getElementById('explanation').value,
+        options
+      };
+
+      try {
+        if (editingId) {
+          await api(`/api/admin/questions/${editingId}`, { method: 'PUT', body: JSON.stringify(payload) });
+        } else {
+          await api(`/api/admin/quizzes/${quizId}/questions`, { method: 'POST', body: JSON.stringify(payload) });
+        }
+        resetForm();
+        load();
+      } catch (err) {
+        showError(errorBanner, err.message);
+      }
+    });
+
+    async function load() {
+      try {
+        const questions = await api(`/api/admin/quizzes/${quizId}/questions`);
+        document.getElementById('questionList').innerHTML = questions.map((q, i) => `
+          <div class="card">
+            <div class="quiz-meta">Question ${i + 1}</div>
+            <h3>${escapeHtml(q.text)}</h3>
+            <ul>
+              ${q.options.map(o => `<li>${o.correct ? '<strong>' : ''}${escapeHtml(o.text)}${o.correct ? ' (correct)</strong>' : ''}</li>`).join('')}
+            </ul>
+            <a href="#" data-edit="${q.id}">Edit</a>
+            &nbsp;|&nbsp;
+            <a href="#" data-delete="${q.id}">Delete</a>
+          </div>
+        `).join('') || '<div class="empty-state">No questions yet — add one above.</div>';
+
+        window._questionsCache = questions;
+
+        document.querySelectorAll('[data-edit]').forEach(el => el.addEventListener('click', (e) => {
+          e.preventDefault();
+          const q = window._questionsCache.find(x => x.id == el.dataset.edit);
+          editingId = q.id;
+          document.getElementById('text').value = q.text;
+          document.getElementById('explanation').value = q.explanation || '';
+          optionsEditor.innerHTML = '';
+          q.options.forEach(o => addOptionRow(o.text, o.correct));
+          document.getElementById('formTitle').textContent = 'Edit question';
+          document.getElementById('cancelBtn').style.display = 'inline-block';
+          window.scrollTo(0, 0);
+        }));
+
+        document.querySelectorAll('[data-delete]').forEach(el => el.addEventListener('click', async (e) => {
+          e.preventDefault();
+          if (!confirm('Delete this question?')) return;
+          try {
+            await api(`/api/admin/questions/${el.dataset.delete}`, { method: 'DELETE' });
+            load();
+          } catch (err) {
+            showError(errorBanner, err.message);
+          }
+        }));
+      } catch (err) {
+        showError(errorBanner, err.message);
+      }
+    }
+
+    function escapeHtml(s) {
+      const div = document.createElement('div');
+      div.textContent = s;
+      return div.innerHTML;
+    }
+    function escapeAttr(s) { return escapeHtml(s).replace(/"/g, '&quot;'); }
+
+    resetForm();
+    load();
+  </script>
+</body>
+</html>

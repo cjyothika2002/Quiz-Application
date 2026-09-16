@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Categories — Admin</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div class="topbar">
+    <span class="wordmark">Quiz System — Admin</span>
+    <nav>
+      <a href="/admin/dashboard.html">Dashboard</a>
+      <a href="/admin/categories.html">Categories</a>
+      <a href="/admin/quizzes.html">Quizzes</a>
+      <a href="/admin/users.html">Users</a>
+      <a href="#" id="logoutLink">Sign out</a>
+    </nav>
+  </div>
+
+  <div class="container wide">
+    <h1>Categories</h1>
+    <div class="error-banner" id="errorBanner"></div>
+
+    <div class="card" style="max-width:480px">
+      <h3 id="formTitle">Add a category</h3>
+      <label for="name">Name</label>
+      <input type="text" id="name">
+      <label for="description">Description</label>
+      <input type="text" id="description">
+      <button id="saveBtn">Save</button>
+      <button class="secondary" id="cancelBtn" style="display:none">Cancel edit</button>
+    </div>
+
+    <table>
+      <thead><tr><th>Name</th><th>Description</th><th></th></tr></thead>
+      <tbody id="tableBody"></tbody>
+    </table>
+  </div>
+
+  <script src="/js/api.js"></script>
+  <script>
+    requireAuth('ADMIN');
+    document.getElementById('logoutLink').addEventListener('click', (e) => { e.preventDefault(); logout(); });
+
+    const errorBanner = document.getElementById('errorBanner');
+    let editingId = null;
+
+    async function load() {
+      try {
+        const categories = await api('/api/admin/categories');
+        document.getElementById('tableBody').innerHTML = categories.map(c => `
+          <tr>
+            <td>${escapeHtml(c.name)}</td>
+            <td>${escapeHtml(c.description || '')}</td>
+            <td>
+              <a href="#" data-edit="${c.id}" data-name="${escapeHtml(c.name)}" data-desc="${escapeHtml(c.description || '')}">Edit</a>
+              &nbsp;|&nbsp;
+              <a href="#" data-delete="${c.id}">Delete</a>
+            </td>
+          </tr>
+        `).join('');
+
+        document.querySelectorAll('[data-edit]').forEach(el => el.addEventListener('click', (e) => {
+          e.preventDefault();
+          editingId = el.dataset.edit;
+          document.getElementById('name').value = el.dataset.name;
+          document.getElementById('description').value = el.dataset.desc;
+          document.getElementById('formTitle').textContent = 'Edit category';
+          document.getElementById('cancelBtn').style.display = 'inline-block';
+        }));
+
+        document.querySelectorAll('[data-delete]').forEach(el => el.addEventListener('click', async (e) => {
+          e.preventDefault();
+          if (!confirm('Delete this category?')) return;
+          try {
+            await api(`/api/admin/categories/${el.dataset.delete}`, { method: 'DELETE' });
+            load();
+          } catch (err) {
+            showError(errorBanner, err.message);
+          }
+        }));
+      } catch (err) {
+        showError(errorBanner, err.message);
+      }
+    }
+
+    document.getElementById('saveBtn').addEventListener('click', async () => {
+      hideError(errorBanner);
+      const payload = {
+        name: document.getElementById('name').value,
+        description: document.getElementById('description').value
+      };
+      try {
+        if (editingId) {
+          await api(`/api/admin/categories/${editingId}`, { method: 'PUT', body: JSON.stringify(payload) });
+        } else {
+          await api('/api/admin/categories', { method: 'POST', body: JSON.stringify(payload) });
+        }
+        resetForm();
+        load();
+      } catch (err) {
+        showError(errorBanner, err.message);
+      }
+    });
+
+    document.getElementById('cancelBtn').addEventListener('click', resetForm);
+
+    function resetForm() {
+      editingId = null;
+      document.getElementById('name').value = '';
+      document.getElementById('description').value = '';
+      document.getElementById('formTitle').textContent = 'Add a category';
+      document.getElementById('cancelBtn').style.display = 'none';
+    }
+
+    function escapeHtml(s) {
+      const div = document.createElement('div');
+      div.textContent = s;
+      return div.innerHTML;
+    }
+
+    load();
+  </script>
+</body>
+</html>
